@@ -53,12 +53,13 @@ class FirstFragment : Fragment() {
             try {
                 val file = File(requireContext().filesDir, "60MB_test_Original_PDF_from_Kirtas.pdf")
                 val pdfCreateThumbnails = PdfCreateThumbnails()
-                val thubnailBitmap = pdfCreateThumbnails.createTumnailSprite(file)
+//                val thubnailBitmap = pdfCreateThumbnails.createTumnailSprite(file)
+                val thubnailBitmap = pdfCreateThumbnails.getBitmapWithPdfBox(file)
                 withContext(Dispatchers.Main) {
                     binding.image.setImageBitmap(thubnailBitmap)
                 }
             } catch (e: Exception) {
-                Log.d("FirstFragment", "error: $e")
+                Log.e("FirstFragment", "error: $e")
             }
 
         }

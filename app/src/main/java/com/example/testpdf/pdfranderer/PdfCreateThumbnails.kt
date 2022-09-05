@@ -5,7 +5,8 @@ import android.graphics.Rect
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.util.Log
-import java.io.File
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import java.io.*
 
 
 class PdfCreateThumbnails() {
@@ -14,10 +15,88 @@ class PdfCreateThumbnails() {
     val thumbnailsSize = 200
     val NUMBER_OF_COLUMNS = 5
 
+    fun getBitmapWithPdfBox(inputFile: File): Bitmap? {
+//        val inputStream = getpdfBoxpdfInputStream(inputFile)
+//        val fileDescriptor = getFileDescriptorFromStream(inputStream)
+        val fileDescriptor = getpdfBoxpdfInputStreamToFileDescriptor(inputFile)
+        return createTumnailSprite(fileDescriptor)
+    }
+
+
+    fun getpdfBoxpdfInputStream(inputFile: File): InputStream {
+
+//        val pd = PDDocument.load(inputFile, "your_password")
+        val pd = PDDocument.load(inputFile)
+
+//        pd.setAllSecurityToBeRemoved(true)
+        val outputStream = ByteArrayOutputStream(70_000_000)
+        pd.save(outputStream)
+
+        val inputStream = PipedInputStream(70_000_000)
+        val out = PipedOutputStream(inputStream)
+
+        Thread {
+            outputStream.writeTo(out)
+        }.start()
+
+        return inputStream
+    }
+
+    fun getpdfBoxpdfInputStreamToFileDescriptor(inputFile: File): ParcelFileDescriptor {
+
+//      val pd = PDDocument.load(inputFile, "your_password")
+        val pd = PDDocument.load(inputFile)
+
+//      pd.setAllSecurityToBeRemoved(true)
+        val outputStream = ByteArrayOutputStream(70_000_000)
+
+        pd.save(outputStream)
+
+        val dataToWrite = outputStream.toByteArray()
+
+        return getFileDescriptor(dataToWrite)!!
+
+    }
+
+    @Throws(IOException::class)
+    private fun getFileDescriptor(fileData: ByteArray): ParcelFileDescriptor? {
+        Log.d("PDF", "Found " + fileData.size + " bytes of data")
+        val pipe = ParcelFileDescriptor.createPipe()
+
+        // Stream the file data to our ParcelFileDescriptor output stream
+        val inputStream: InputStream = ByteArrayInputStream(fileData)
+        val outputStream = ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])
+        var len: Int
+        var index = 0
+        var size = 0
+        var buffer = ByteArray(2048)
+        while (inputStream.read(buffer).also { len = it } >= 0) {
+            size += len
+            index ++
+            Log.d("PDF", "getFileDescriptor: len: $len size:$size index: $index")
+            outputStream.write(buffer,0, len)
+            Log.d("PDF", "after write")
+
+        }
+        inputStream.close()
+        outputStream.flush()
+        outputStream.close()
+
+        // Return the ParcelFileDescriptor input stream to the calling activity in order to read
+        // the file data.
+        return pipe[0]
+    }
+
+
     fun createTumnailSprite(file: File): Bitmap? {
+        val fileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        return createTumnailSprite(fileDescriptor)
+    }
+
+    fun createTumnailSprite(fileDescriptor: ParcelFileDescriptor): Bitmap? {
 
         // create a new renderer
-        val renderer = PdfRenderer(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY))
+        val renderer = PdfRenderer(fileDescriptor)
 
         // let us just render all pages
         val itemsCount = renderer.pageCount
